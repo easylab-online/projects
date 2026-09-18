@@ -124,6 +124,18 @@ export function ProjectCard({ project }: { project: Project }) {
 
         <div className="mt-auto flex flex-wrap gap-2 border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
           <Link
+            href={`/projects/${encodeURIComponent(project.id)}/notes`}
+            className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            ملاحظات
+          </Link>
+          <Link
+            href={`/projects/${encodeURIComponent(project.id)}/tasks`}
+            className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            مهام
+          </Link>
+          <Link
             href={`/projects/${encodeURIComponent(project.id)}/edit`}
             className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
           >
