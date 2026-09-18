@@ -3,15 +3,20 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { ProjectGrid } from "@/components/ProjectGrid";
 import { listProjects } from "@/lib/projects";
 
-/** D1 is only available at request time — never prerender against empty build DB. */
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   let projects: Awaited<ReturnType<typeof listProjects>> = [];
+  let loadError: string | null = null;
+
   try {
     projects = await listProjects();
   } catch (err) {
     console.error("listProjects failed on home page", err);
+    loadError =
+      err instanceof Error
+        ? err.message
+        : "تعذر الاتصال بقاعدة البيانات.";
   }
 
   return (
@@ -52,7 +57,20 @@ export default async function HomePage() {
             اختر مشروعاً لفتح روابطه أو مستودع GitHub
           </p>
         </div>
-        <ProjectGrid projects={projects} />
+
+        {loadError ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+          >
+            <p className="font-semibold">تعذر تحميل المشاريع من قاعدة البيانات</p>
+            <p className="mt-2 break-words opacity-90" dir="ltr">
+              {loadError}
+            </p>
+          </div>
+        ) : (
+          <ProjectGrid projects={projects} />
+        )}
       </main>
 
       <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2 text-center text-xs text-zinc-400 sm:px-6">

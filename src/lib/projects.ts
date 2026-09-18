@@ -37,13 +37,10 @@ export type ProjectInput = {
   sortOrder?: number;
 };
 
+/** Only treat missing-table as empty during local/CI builds — never hide real query failures. */
 function isMissingTableError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
-  return (
-    message.includes("no such table") ||
-    message.includes("D1_ERROR") ||
-    message.includes("SQLITE_ERROR")
-  );
+  return /no such table/i.test(message);
 }
 
 function mapProject(
@@ -115,34 +112,30 @@ async function loadReposForProjects(
   projectIds?: string[],
 ): Promise<Map<string, ProjectRepo[]>> {
   const map = new Map<string, ProjectRepo[]>();
-  try {
-    let result;
-    if (projectIds && projectIds.length === 1) {
-      result = await db
-        .prepare(
-          `SELECT project_id, name, url, sort_order
-           FROM project_repos
-           WHERE project_id = ?
-           ORDER BY sort_order ASC, id ASC`,
-        )
-        .bind(projectIds[0])
-        .all<RepoRow>();
-    } else {
-      result = await db
-        .prepare(
-          `SELECT project_id, name, url, sort_order
-           FROM project_repos
-           ORDER BY sort_order ASC, id ASC`,
-        )
-        .all<RepoRow>();
-    }
-    for (const row of result.results ?? []) {
-      const list = map.get(row.project_id) ?? [];
-      list.push({ name: row.name, url: row.url });
-      map.set(row.project_id, list);
-    }
-  } catch (err) {
-    if (!isMissingTableError(err)) throw err;
+  let result;
+  if (projectIds && projectIds.length === 1) {
+    result = await db
+      .prepare(
+        `SELECT project_id, name, url, sort_order
+         FROM project_repos
+         WHERE project_id = ?
+         ORDER BY sort_order ASC, id ASC`,
+      )
+      .bind(projectIds[0])
+      .all<RepoRow>();
+  } else {
+    result = await db
+      .prepare(
+        `SELECT project_id, name, url, sort_order
+         FROM project_repos
+         ORDER BY sort_order ASC, id ASC`,
+      )
+      .all<RepoRow>();
+  }
+  for (const row of result.results ?? []) {
+    const list = map.get(row.project_id) ?? [];
+    list.push({ name: row.name, url: row.url });
+    map.set(row.project_id, list);
   }
   return map;
 }
@@ -169,7 +162,13 @@ export async function listProjects(): Promise<Project[]> {
 
     const projectRows: ProjectRow[] = projectsResult.results ?? [];
     const linkRows: LinkRow[] = linksResult.results ?? [];
-    const reposByProject = await loadReposForProjects(db);
+
+    let reposByProject = new Map<string, ProjectRepo[]>();
+    try {
+      reposByProject = await loadReposForProjects(db);
+    } catch (err) {
+      if (!isMissingTableError(err)) throw err;
+    }
 
     const linksByProject = new Map<string, ProjectLink[]>();
     for (const link of linkRows) {
@@ -195,49 +194,47 @@ export async function listProjects(): Promise<Project[]> {
 }
 
 export async function getProject(id: string): Promise<ProjectWithSort | null> {
+  const db = await getDB();
+
+  const row = await db
+    .prepare(
+      `SELECT id, name, description, icon, image_url, sort_order
+       FROM projects
+       WHERE id = ?
+       LIMIT 1`,
+    )
+    .bind(id)
+    .first<ProjectRow>();
+
+  if (!row) return null;
+
+  const linksResult = await db
+    .prepare(
+      `SELECT project_id, label, url, sort_order
+       FROM project_links
+       WHERE project_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+    )
+    .bind(id)
+    .all<LinkRow>();
+
+  const links: ProjectLink[] = (linksResult.results ?? []).map((l) => ({
+    label: l.label,
+    url: l.url,
+  }));
+
+  let repos: ProjectRepo[] = [];
   try {
-    const db = await getDB();
-
-    const row = await db
-      .prepare(
-        `SELECT id, name, description, icon, image_url, sort_order
-         FROM projects
-         WHERE id = ?
-         LIMIT 1`,
-      )
-      .bind(id)
-      .first<ProjectRow>();
-
-    if (!row) return null;
-
-    const linksResult = await db
-      .prepare(
-        `SELECT project_id, label, url, sort_order
-         FROM project_links
-         WHERE project_id = ?
-         ORDER BY sort_order ASC, id ASC`,
-      )
-      .bind(id)
-      .all<LinkRow>();
-
-    const links: ProjectLink[] = (linksResult.results ?? []).map((l) => ({
-      label: l.label,
-      url: l.url,
-    }));
-
     const reposByProject = await loadReposForProjects(db, [id]);
-
-    return {
-      ...mapProject(row, links, reposByProject.get(id) ?? []),
-      sortOrder: row.sort_order,
-    };
+    repos = reposByProject.get(id) ?? [];
   } catch (err) {
-    if (isMissingTableError(err)) {
-      console.warn("getProject: D1 schema missing, returning null", err);
-      return null;
-    }
-    throw err;
+    if (!isMissingTableError(err)) throw err;
   }
+
+  return {
+    ...mapProject(row, links, repos),
+    sortOrder: row.sort_order,
+  };
 }
 
 export async function createProject(input: ProjectInput): Promise<ProjectWithSort> {

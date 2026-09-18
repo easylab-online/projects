@@ -1,11 +1,24 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { cache } from "react";
 
 /** Return the D1 database binding from the Cloudflare Worker env. */
-export async function getDB(): Promise<D1Database> {
-  const { env } = await getCloudflareContext({ async: true });
-  const db = (env as CloudflareEnv).DB;
-  if (!db) {
-    throw new Error("D1 binding DB is not configured");
+export const getDB = cache(async (): Promise<D1Database> => {
+  let env: CloudflareEnv | undefined;
+
+  try {
+    env = getCloudflareContext().env as CloudflareEnv;
+  } catch {
+    // Outside a sync request context — try async mode (ISR/static).
   }
-  return db;
-}
+
+  if (!env?.DB) {
+    const ctx = await getCloudflareContext({ async: true });
+    env = ctx.env as CloudflareEnv;
+  }
+
+  if (!env?.DB) {
+    throw new Error("D1 binding DB is not configured on this Worker");
+  }
+
+  return env.DB;
+});
