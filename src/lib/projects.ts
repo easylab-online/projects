@@ -22,7 +22,7 @@ type LinkRow = {
 export async function listProjects(): Promise<Project[]> {
   const db = await getDB();
 
-  const { results: projectRows } = await db
+  const projectsResult = await db
     .prepare(
       `SELECT id, name, description, icon, image_url, github_url, sort_order
        FROM projects
@@ -30,7 +30,7 @@ export async function listProjects(): Promise<Project[]> {
     )
     .all<ProjectRow>();
 
-  const { results: linkRows } = await db
+  const linksResult = await db
     .prepare(
       `SELECT project_id, label, url, sort_order
        FROM project_links
@@ -38,14 +38,17 @@ export async function listProjects(): Promise<Project[]> {
     )
     .all<LinkRow>();
 
+  const projectRows: ProjectRow[] = projectsResult.results ?? [];
+  const linkRows: LinkRow[] = linksResult.results ?? [];
+
   const linksByProject = new Map<string, ProjectLink[]>();
-  for (const link of linkRows ?? []) {
+  for (const link of linkRows) {
     const list = linksByProject.get(link.project_id) ?? [];
     list.push({ label: link.label, url: link.url });
     linksByProject.set(link.project_id, list);
   }
 
-  return (projectRows ?? []).map((row) => {
+  return projectRows.map((row: ProjectRow): Project => {
     const project: Project = {
       id: row.id,
       name: row.name,

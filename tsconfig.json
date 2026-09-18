@@ -7,6 +7,9 @@
       "esnext",
       "WebWorker"
     ],
+    "types": [
+      "@cloudflare/workers-types"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
