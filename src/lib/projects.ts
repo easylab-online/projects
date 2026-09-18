@@ -254,7 +254,7 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
   const db = await getDB();
   const baseId = (input.id?.trim() || slugifyProjectId(input.name)).slice(0, 64);
   const id = await ensureUniqueId(db, baseId);
-  const sortOrder = input.sortOrder ?? (await queryNextSortOrder(db));
+  const sortOrder = input.sortOrder ?? (await nextSortOrder());
   const imageUrl = input.imageUrl?.trim() || null;
   const icon = input.icon?.trim() || "📦";
   const description = (input.description ?? "").trim();
@@ -347,8 +347,8 @@ export async function updateProject(
     statements.push(
       db
         .prepare(
-          `INSERT INTO project_repos (project_id, name, url, sort_order)
-           VALUES (?, ?, ?, ?)`,
+          `INSERT INTO project_repos (project_id, name, description, icon, image_url, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .bind(id, repo.name, repo.url, index + 1),
     );
