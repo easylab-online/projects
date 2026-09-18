@@ -10,6 +10,7 @@ type UpdateBody = {
   description?: string;
   icon?: string;
   imageUrl?: string | null;
+  sortOrder?: number;
   githubUrl?: string;
   repos?: ProjectRepo[];
   links?: ProjectLink[];
@@ -21,6 +22,10 @@ type RouteContext = {
 
 function validateProjectBody(body: UpdateBody): string | null {
   if (!body.name?.trim()) return "الاسم مطلوب.";
+
+  if (body.sortOrder !== undefined && (!Number.isInteger(body.sortOrder) || body.sortOrder < 0)) {
+    return "الترتيب يجب أن يكون رقماً صحيحاً غير سالب.";
+  }
 
   if (body.links != null) {
     if (!Array.isArray(body.links)) return "قائمة الروابط غير صالحة.";
@@ -96,6 +101,7 @@ export async function PUT(request: Request, context: RouteContext) {
       description: body.description ?? "",
       icon: body.icon?.trim() || "📦",
       imageUrl: body.imageUrl,
+      sortOrder: body.sortOrder,
       repos: resolveRepos(body),
       links: body.links ?? [],
     });

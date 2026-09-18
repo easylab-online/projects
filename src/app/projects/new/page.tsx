@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { ProjectForm } from "@/components/ProjectForm";
+import { nextSortOrder } from "@/lib/projects";
 
 export const dynamic = "force-dynamic";
 
-export default function NewProjectPage() {
+export default async function NewProjectPage() {
+  const sortOrder = await nextSortOrder();
+
   return (
     <div className="lab-grid min-h-screen">
       <header className="border-b border-zinc-200/80 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -27,7 +30,7 @@ export default function NewProjectPage() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div className="rounded-2xl border border-zinc-200/80 bg-white/90 p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80 sm:p-8">
-          <ProjectForm mode="create" />
+          <ProjectForm mode="create" initial={{ sortOrder: String(sortOrder) }} />
         </div>
       </main>
     </div>

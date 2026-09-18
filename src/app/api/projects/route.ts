@@ -11,6 +11,7 @@ type CreateBody = {
   description?: string;
   icon?: string;
   imageUrl?: string | null;
+  sortOrder?: number;
   githubUrl?: string;
   repos?: ProjectRepo[];
   links?: ProjectLink[];
@@ -18,6 +19,10 @@ type CreateBody = {
 
 function validateProjectBody(body: CreateBody): string | null {
   if (!body.name?.trim()) return "الاسم مطلوب.";
+
+  if (body.sortOrder !== undefined && (!Number.isInteger(body.sortOrder) || body.sortOrder < 0)) {
+    return "الترتيب يجب أن يكون رقماً صحيحاً غير سالب.";
+  }
 
   if (body.links != null) {
     if (!Array.isArray(body.links)) return "قائمة الروابط غير صالحة.";
@@ -109,6 +114,7 @@ export async function POST(request: Request) {
       description: body.description ?? "",
       icon: body.icon?.trim() || "📦",
       imageUrl: body.imageUrl,
+      sortOrder: body.sortOrder,
       repos: resolveRepos(body),
       links: body.links ?? [],
     });

@@ -48,6 +48,7 @@ export default async function EditProjectPage({ params }: PageProps) {
               description: project.description,
               icon: project.icon,
               imageUrl: project.imageUrl ?? "",
+              sortOrder: project.sortOrder,
               repos: project.repos ?? [],
               links: project.links,
             }}

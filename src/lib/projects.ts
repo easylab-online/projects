@@ -33,6 +33,7 @@ export type ProjectInput = {
   description?: string;
   icon: string;
   imageUrl?: string | null;
+  sortOrder?: number;
   repos?: ProjectRepo[];
   links: ProjectLink[];
 };
@@ -106,11 +107,15 @@ async function ensureUniqueId(db: D1Database, baseId: string): Promise<string> {
   }
 }
 
-async function nextSortOrder(db: D1Database): Promise<number> {
+async function queryNextSortOrder(db: D1Database): Promise<number> {
   const row = await db
     .prepare(`SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM projects`)
     .first<{ max_sort: number }>();
   return (row?.max_sort ?? 0) + 1;
+}
+
+export async function nextSortOrder(): Promise<number> {
+  return queryNextSortOrder(await getDB());
 }
 
 async function loadReposForProjects(
@@ -146,7 +151,7 @@ async function loadReposForProjects(
   return map;
 }
 
-/** Newest projects first (by created_at, then sort_order). */
+/** Highest sort order first, then newest projects and id for stable ties. */
 export async function listProjects(): Promise<Project[]> {
   try {
     const db = await getDB();
@@ -155,7 +160,7 @@ export async function listProjects(): Promise<Project[]> {
       .prepare(
         `SELECT id, name, description, icon, image_url, sort_order, created_at
          FROM projects
-         ORDER BY datetime(created_at) DESC, sort_order DESC, id DESC`,
+         ORDER BY sort_order DESC, created_at DESC, id DESC`,
       )
       .all<ProjectRow>();
 
@@ -249,7 +254,7 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
   const db = await getDB();
   const baseId = (input.id?.trim() || slugifyProjectId(input.name)).slice(0, 64);
   const id = await ensureUniqueId(db, baseId);
-  const sortOrder = await nextSortOrder(db);
+  const sortOrder = input.sortOrder ?? (await queryNextSortOrder(db));
   const imageUrl = input.imageUrl?.trim() || null;
   const icon = input.icon?.trim() || "📦";
   const description = (input.description ?? "").trim();
@@ -303,26 +308,26 @@ export async function updateProject(
   const db = await getDB();
 
   const existing = await db
-    .prepare(`SELECT id FROM projects WHERE id = ? LIMIT 1`)
+    .prepare(`SELECT id, sort_order FROM projects WHERE id = ? LIMIT 1`)
     .bind(id)
-    .first<{ id: string }>();
+    .first<{ id: string; sort_order: number }>();
   if (!existing) return null;
 
   const imageUrl = input.imageUrl?.trim() || null;
   const icon = input.icon?.trim() || "📦";
   const description = (input.description ?? "").trim();
+  const sortOrder = input.sortOrder ?? existing.sort_order;
   const links = input.links ?? [];
   const repos = normalizeRepos(input);
 
-  // Do not change created_at / sort_order on edit — list order stays by newest added.
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
         `UPDATE projects
-         SET name = ?, description = ?, icon = ?, image_url = ?
+         SET name = ?, description = ?, icon = ?, image_url = ?, sort_order = ?
          WHERE id = ?`,
       )
-      .bind(input.name.trim(), description, icon, imageUrl, id),
+      .bind(input.name.trim(), description, icon, imageUrl, sortOrder, id),
     db.prepare(`DELETE FROM project_links WHERE project_id = ?`).bind(id),
     db.prepare(`DELETE FROM project_repos WHERE project_id = ?`).bind(id),
   ];

@@ -9,14 +9,20 @@ export type ProjectFormValues = {
   description: string;
   icon: string;
   imageUrl: string;
+  sortOrder: string;
   repos: ProjectRepo[];
   links: ProjectLink[];
+};
+
+type ProjectFormInitial = Partial<Omit<ProjectFormValues, "sortOrder">> & {
+  sortOrder?: string | number;
+  githubUrl?: string;
 };
 
 type ProjectFormProps = {
   mode: "create" | "edit";
   projectId?: string;
-  initial?: Partial<ProjectFormValues> & { githubUrl?: string };
+  initial?: ProjectFormInitial;
 };
 
 const emptyValues: ProjectFormValues = {
@@ -24,13 +30,12 @@ const emptyValues: ProjectFormValues = {
   description: "",
   icon: "📦",
   imageUrl: "",
+  sortOrder: "",
   repos: [],
   links: [],
 };
 
-function initialRepos(
-  initial?: Partial<ProjectFormValues> & { githubUrl?: string },
-): ProjectRepo[] {
+function initialRepos(initial?: ProjectFormInitial): ProjectRepo[] {
   if (initial?.repos?.length) return initial.repos;
   if (initial?.githubUrl?.trim()) {
     return [{ name: "المستودع الرئيسي", url: initial.githubUrl.trim() }];
@@ -43,6 +48,7 @@ export function ProjectForm({ mode, projectId, initial }: ProjectFormProps) {
   const [values, setValues] = useState<ProjectFormValues>({
     ...emptyValues,
     ...initial,
+    sortOrder: initial?.sortOrder == null ? "" : String(initial.sortOrder),
     links: initial?.links?.length ? initial.links : [],
     repos: initialRepos(initial),
   });
@@ -104,6 +110,12 @@ export function ProjectForm({ mode, projectId, initial }: ProjectFormProps) {
 
   function clientValidate(): string | null {
     if (!values.name.trim()) return "الاسم مطلوب.";
+    if (values.sortOrder.trim()) {
+      const sortOrder = Number(values.sortOrder);
+      if (!Number.isInteger(sortOrder) || sortOrder < 0) {
+        return "الترتيب يجب أن يكون رقماً صحيحاً غير سالب.";
+      }
+    }
     for (const link of values.links) {
       const hasLabel = Boolean(link.label.trim());
       const hasUrl = Boolean(link.url.trim());
@@ -138,6 +150,7 @@ export function ProjectForm({ mode, projectId, initial }: ProjectFormProps) {
       description: values.description.trim(),
       icon: values.icon.trim() || "📦",
       imageUrl: values.imageUrl.trim() || null,
+      sortOrder: values.sortOrder.trim() ? Number(values.sortOrder) : undefined,
       repos: values.repos
         .filter((r) => r.name.trim() && r.url.trim())
         .map((r) => ({ name: r.name.trim(), url: r.url.trim() })),
@@ -191,6 +204,24 @@ export function ProjectForm({ mode, projectId, initial }: ProjectFormProps) {
           onChange={(e) => updateField("name", e.target.value)}
           className={inputClass}
           placeholder="مثال: DonePlan"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="sortOrder" className={labelClass}>
+          الترتيب
+        </label>
+        <input
+          id="sortOrder"
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          value={values.sortOrder}
+          onChange={(e) => updateField("sortOrder", e.target.value)}
+          className={inputClass}
+          placeholder="مثال: 1"
+          dir="ltr"
         />
       </div>
 
