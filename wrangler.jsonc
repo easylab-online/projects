@@ -14,6 +14,14 @@
       "service": "projects"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "projects-db",
+      "database_id": "74c78320-5b21-477b-8bdc-5bcdfa734b75",
+      "migrations_dir": "migrations"
+    }
+  ],
   // Custom domain: projects.easylab.online
   // After first deploy, attach the domain in Cloudflare Dashboard →
   // Workers & Pages → projects → Settings → Domains & Routes
