@@ -1,5 +1,5 @@
 import { getDB } from "@/lib/db";
-import type { Project, ProjectLink } from "@/data/projects";
+import type { Project, ProjectLink, ProjectRepo } from "@/data/projects";
 
 type ProjectRow = {
   id: string;
@@ -18,15 +18,24 @@ type LinkRow = {
   sort_order: number;
 };
 
+type RepoRow = {
+  project_id: string;
+  name: string;
+  url: string;
+  sort_order: number;
+};
+
 export type ProjectWithSort = Project & { sortOrder: number };
 
 export type ProjectInput = {
   id?: string;
   name: string;
-  description: string;
+  description?: string;
   icon: string;
   imageUrl?: string | null;
-  githubUrl: string;
+  repos?: ProjectRepo[];
+  /** @deprecated prefer repos */
+  githubUrl?: string;
   links: ProjectLink[];
   sortOrder?: number;
 };
@@ -40,22 +49,42 @@ function isMissingTableError(err: unknown): boolean {
   );
 }
 
-function mapProject(row: ProjectRow, links: ProjectLink[]): Project {
+function mapProject(
+  row: ProjectRow,
+  links: ProjectLink[],
+  repos: ProjectRepo[],
+): Project {
   const project: Project = {
     id: row.id,
     name: row.name,
-    description: row.description,
+    description: row.description ?? "",
     icon: row.icon,
-    githubUrl: row.github_url,
     links,
+    repos,
   };
   if (row.image_url) {
     project.imageUrl = row.image_url;
   }
+  const firstUrl = repos[0]?.url || row.github_url || undefined;
+  if (firstUrl) {
+    project.githubUrl = firstUrl;
+  }
   return project;
 }
 
-/** ASCII kebab slug from name, or a short random id when name is non-ASCII. */
+function normalizeRepos(input: ProjectInput): ProjectRepo[] {
+  if (input.repos && input.repos.length > 0) {
+    return input.repos.map((r) => ({
+      name: r.name.trim(),
+      url: r.url.trim(),
+    }));
+  }
+  if (input.githubUrl?.trim()) {
+    return [{ name: "المستودع الرئيسي", url: input.githubUrl.trim() }];
+  }
+  return [];
+}
+
 export function slugifyProjectId(name: string): string {
   const ascii = name
     .normalize("NFKD")
@@ -93,7 +122,54 @@ async function ensureUniqueId(db: D1Database, baseId: string): Promise<string> {
   }
 }
 
-/** Load all projects with their links from D1, ordered by sort_order. */
+async function loadReposForProjects(
+  db: D1Database,
+  projectIds?: string[],
+): Promise<Map<string, ProjectRepo[]>> {
+  const map = new Map<string, ProjectRepo[]>();
+  try {
+    let result;
+    if (projectIds && projectIds.length === 1) {
+      result = await db
+        .prepare(
+          `SELECT project_id, name, url, sort_order
+           FROM project_repos
+           WHERE project_id = ?
+           ORDER BY sort_order ASC, id ASC`,
+        )
+        .bind(projectIds[0])
+        .all<RepoRow>();
+    } else {
+      result = await db
+        .prepare(
+          `SELECT project_id, name, url, sort_order
+           FROM project_repos
+           ORDER BY sort_order ASC, id ASC`,
+        )
+        .all<RepoRow>();
+    }
+    for (const row of result.results ?? []) {
+      const list = map.get(row.project_id) ?? [];
+      list.push({ name: row.name, url: row.url });
+      map.set(row.project_id, list);
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) throw err;
+  }
+  return map;
+}
+
+function reposWithLegacyFallback(
+  row: ProjectRow,
+  repos: ProjectRepo[],
+): ProjectRepo[] {
+  if (repos.length > 0) return repos;
+  if (row.github_url?.trim()) {
+    return [{ name: "المستودع الرئيسي", url: row.github_url.trim() }];
+  }
+  return [];
+}
+
 export async function listProjects(): Promise<Project[]> {
   try {
     const db = await getDB();
@@ -116,6 +192,7 @@ export async function listProjects(): Promise<Project[]> {
 
     const projectRows: ProjectRow[] = projectsResult.results ?? [];
     const linkRows: LinkRow[] = linksResult.results ?? [];
+    const reposByProject = await loadReposForProjects(db);
 
     const linksByProject = new Map<string, ProjectLink[]>();
     for (const link of linkRows) {
@@ -125,10 +202,13 @@ export async function listProjects(): Promise<Project[]> {
     }
 
     return projectRows.map((row: ProjectRow): Project =>
-      mapProject(row, linksByProject.get(row.id) ?? []),
+      mapProject(
+        row,
+        linksByProject.get(row.id) ?? [],
+        reposWithLegacyFallback(row, reposByProject.get(row.id) ?? []),
+      ),
     );
   } catch (err) {
-    // Local/CI D1 may be empty before migrations; never fail the Next.js build.
     if (isMissingTableError(err)) {
       console.warn("listProjects: D1 schema missing, returning []", err);
       return [];
@@ -137,7 +217,6 @@ export async function listProjects(): Promise<Project[]> {
   }
 }
 
-/** Load a single project by id, or null if missing. */
 export async function getProject(id: string): Promise<ProjectWithSort | null> {
   try {
     const db = await getDB();
@@ -164,14 +243,19 @@ export async function getProject(id: string): Promise<ProjectWithSort | null> {
       .bind(id)
       .all<LinkRow>();
 
-    const linkRows: LinkRow[] = linksResult.results ?? [];
-    const links: ProjectLink[] = linkRows.map((l) => ({
+    const links: ProjectLink[] = (linksResult.results ?? []).map((l) => ({
       label: l.label,
       url: l.url,
     }));
 
+    const reposByProject = await loadReposForProjects(db, [id]);
+    const repos = reposWithLegacyFallback(
+      row,
+      reposByProject.get(id) ?? [],
+    );
+
     return {
-      ...mapProject(row, links),
+      ...mapProject(row, links, repos),
       sortOrder: row.sort_order,
     };
   } catch (err) {
@@ -183,7 +267,6 @@ export async function getProject(id: string): Promise<ProjectWithSort | null> {
   }
 }
 
-/** Insert a project and its links. Generates a unique slug id when omitted. */
 export async function createProject(input: ProjectInput): Promise<ProjectWithSort> {
   const db = await getDB();
   const baseId = (input.id?.trim() || slugifyProjectId(input.name)).slice(0, 64);
@@ -191,7 +274,10 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
   const sortOrder = input.sortOrder ?? 0;
   const imageUrl = input.imageUrl?.trim() || null;
   const icon = input.icon?.trim() || "📦";
+  const description = (input.description ?? "").trim();
   const links = input.links ?? [];
+  const repos = normalizeRepos(input);
+  const legacyGithub = repos[0]?.url ?? "";
 
   const statements: D1PreparedStatement[] = [
     db
@@ -199,15 +285,7 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
         `INSERT INTO projects (id, name, description, icon, image_url, github_url, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(
-        id,
-        input.name.trim(),
-        input.description.trim(),
-        icon,
-        imageUrl,
-        input.githubUrl.trim(),
-        sortOrder,
-      ),
+      .bind(id, input.name.trim(), description, icon, imageUrl, legacyGithub, sortOrder),
   ];
 
   links.forEach((link, index) => {
@@ -221,6 +299,17 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
     );
   });
 
+  repos.forEach((repo, index) => {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO project_repos (project_id, name, url, sort_order)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .bind(id, repo.name, repo.url, index + 1),
+    );
+  });
+
   await db.batch(statements);
 
   const created = await getProject(id);
@@ -230,7 +319,6 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
   return created;
 }
 
-/** Update project fields and replace all project_links in one batch. */
 export async function updateProject(
   id: string,
   input: ProjectInput,
@@ -246,7 +334,10 @@ export async function updateProject(
   const sortOrder = input.sortOrder ?? 0;
   const imageUrl = input.imageUrl?.trim() || null;
   const icon = input.icon?.trim() || "📦";
+  const description = (input.description ?? "").trim();
   const links = input.links ?? [];
+  const repos = normalizeRepos(input);
+  const legacyGithub = repos[0]?.url ?? "";
 
   const statements: D1PreparedStatement[] = [
     db
@@ -257,14 +348,15 @@ export async function updateProject(
       )
       .bind(
         input.name.trim(),
-        input.description.trim(),
+        description,
         icon,
         imageUrl,
-        input.githubUrl.trim(),
+        legacyGithub,
         sortOrder,
         id,
       ),
     db.prepare(`DELETE FROM project_links WHERE project_id = ?`).bind(id),
+    db.prepare(`DELETE FROM project_repos WHERE project_id = ?`).bind(id),
   ];
 
   links.forEach((link, index) => {
@@ -278,12 +370,22 @@ export async function updateProject(
     );
   });
 
+  repos.forEach((repo, index) => {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO project_repos (project_id, name, url, sort_order)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .bind(id, repo.name, repo.url, index + 1),
+    );
+  });
+
   await db.batch(statements);
 
   return getProject(id);
 }
 
-/** Delete project links then the project. */
 export async function deleteProject(id: string): Promise<boolean> {
   const db = await getDB();
 
@@ -295,6 +397,7 @@ export async function deleteProject(id: string): Promise<boolean> {
 
   await db.batch([
     db.prepare(`DELETE FROM project_links WHERE project_id = ?`).bind(id),
+    db.prepare(`DELETE FROM project_repos WHERE project_id = ?`).bind(id),
     db.prepare(`DELETE FROM projects WHERE id = ?`).bind(id),
   ]);
 
