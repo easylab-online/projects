@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "easylab-projects",
+  "name": "projects",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-09-18",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -11,12 +11,12 @@
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "easylab-projects"
+      "service": "projects"
     }
   ],
   // Custom domain: projects.easylab.online
   // After first deploy, attach the domain in Cloudflare Dashboard →
-  // Workers & Pages → easylab-projects → Settings → Domains & Routes
+  // Workers & Pages → projects → Settings → Domains & Routes
   // or uncomment routes below (zone must be on the same Cloudflare account):
   // "routes": [
   //   { "pattern": "projects.easylab.online/*", "zone_name": "easylab.online" }
