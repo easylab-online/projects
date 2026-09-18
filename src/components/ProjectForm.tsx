@@ -11,7 +11,6 @@ export type ProjectFormValues = {
   imageUrl: string;
   repos: ProjectRepo[];
   links: ProjectLink[];
-  sortOrder: string;
 };
 
 type ProjectFormProps = {
@@ -27,7 +26,6 @@ const emptyValues: ProjectFormValues = {
   imageUrl: "",
   repos: [],
   links: [],
-  sortOrder: "",
 };
 
 function initialRepos(
@@ -146,10 +144,6 @@ export function ProjectForm({ mode, projectId, initial }: ProjectFormProps) {
       links: values.links
         .filter((l) => l.label.trim() && l.url.trim())
         .map((l) => ({ label: l.label.trim(), url: l.url.trim() })),
-      sortOrder:
-        values.sortOrder.trim() === ""
-          ? undefined
-          : Number.parseInt(values.sortOrder, 10) || 0,
     };
 
     try {
@@ -214,33 +208,17 @@ export function ProjectForm({ mode, projectId, initial }: ProjectFormProps) {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label htmlFor="icon" className={labelClass}>
-            الأيقونة (emoji)
-          </label>
-          <input
-            id="icon"
-            value={values.icon}
-            onChange={(e) => updateField("icon", e.target.value)}
-            className={inputClass}
-            placeholder="📦"
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="sortOrder" className={labelClass}>
-            الترتيب (اختياري)
-          </label>
-          <input
-            id="sortOrder"
-            type="number"
-            value={values.sortOrder}
-            onChange={(e) => updateField("sortOrder", e.target.value)}
-            className={inputClass}
-            placeholder="0"
-            dir="ltr"
-          />
-        </div>
+      <div className="space-y-2">
+        <label htmlFor="icon" className={labelClass}>
+          الأيقونة (emoji)
+        </label>
+        <input
+          id="icon"
+          value={values.icon}
+          onChange={(e) => updateField("icon", e.target.value)}
+          className={inputClass}
+          placeholder="📦"
+        />
       </div>
 
       <div className="space-y-2">

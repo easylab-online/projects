@@ -8,6 +8,7 @@ type ProjectRow = {
   icon: string;
   image_url: string | null;
   sort_order: number;
+  created_at: string;
 };
 
 type LinkRow = {
@@ -24,7 +25,7 @@ type RepoRow = {
   sort_order: number;
 };
 
-export type ProjectWithSort = Project & { sortOrder: number };
+export type ProjectWithSort = Project & { sortOrder: number; createdAt: string };
 
 export type ProjectInput = {
   id?: string;
@@ -34,10 +35,8 @@ export type ProjectInput = {
   imageUrl?: string | null;
   repos?: ProjectRepo[];
   links: ProjectLink[];
-  sortOrder?: number;
 };
 
-/** Only treat missing-table as empty during local/CI builds — never hide real query failures. */
 function isMissingTableError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return /no such table/i.test(message);
@@ -107,6 +106,13 @@ async function ensureUniqueId(db: D1Database, baseId: string): Promise<string> {
   }
 }
 
+async function nextSortOrder(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM projects`)
+    .first<{ max_sort: number }>();
+  return (row?.max_sort ?? 0) + 1;
+}
+
 async function loadReposForProjects(
   db: D1Database,
   projectIds?: string[],
@@ -140,15 +146,16 @@ async function loadReposForProjects(
   return map;
 }
 
+/** Newest projects first (by created_at, then sort_order). */
 export async function listProjects(): Promise<Project[]> {
   try {
     const db = await getDB();
 
     const projectsResult = await db
       .prepare(
-        `SELECT id, name, description, icon, image_url, sort_order
+        `SELECT id, name, description, icon, image_url, sort_order, created_at
          FROM projects
-         ORDER BY sort_order ASC, id ASC`,
+         ORDER BY datetime(created_at) DESC, sort_order DESC, id DESC`,
       )
       .all<ProjectRow>();
 
@@ -198,7 +205,7 @@ export async function getProject(id: string): Promise<ProjectWithSort | null> {
 
   const row = await db
     .prepare(
-      `SELECT id, name, description, icon, image_url, sort_order
+      `SELECT id, name, description, icon, image_url, sort_order, created_at
        FROM projects
        WHERE id = ?
        LIMIT 1`,
@@ -234,6 +241,7 @@ export async function getProject(id: string): Promise<ProjectWithSort | null> {
   return {
     ...mapProject(row, links, repos),
     sortOrder: row.sort_order,
+    createdAt: row.created_at,
   };
 }
 
@@ -241,7 +249,7 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
   const db = await getDB();
   const baseId = (input.id?.trim() || slugifyProjectId(input.name)).slice(0, 64);
   const id = await ensureUniqueId(db, baseId);
-  const sortOrder = input.sortOrder ?? 0;
+  const sortOrder = await nextSortOrder(db);
   const imageUrl = input.imageUrl?.trim() || null;
   const icon = input.icon?.trim() || "📦";
   const description = (input.description ?? "").trim();
@@ -300,21 +308,21 @@ export async function updateProject(
     .first<{ id: string }>();
   if (!existing) return null;
 
-  const sortOrder = input.sortOrder ?? 0;
   const imageUrl = input.imageUrl?.trim() || null;
   const icon = input.icon?.trim() || "📦";
   const description = (input.description ?? "").trim();
   const links = input.links ?? [];
   const repos = normalizeRepos(input);
 
+  // Do not change created_at / sort_order on edit — list order stays by newest added.
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
         `UPDATE projects
-         SET name = ?, description = ?, icon = ?, image_url = ?, sort_order = ?
+         SET name = ?, description = ?, icon = ?, image_url = ?
          WHERE id = ?`,
       )
-      .bind(input.name.trim(), description, icon, imageUrl, sortOrder, id),
+      .bind(input.name.trim(), description, icon, imageUrl, id),
     db.prepare(`DELETE FROM project_links WHERE project_id = ?`).bind(id),
     db.prepare(`DELETE FROM project_repos WHERE project_id = ?`).bind(id),
   ];

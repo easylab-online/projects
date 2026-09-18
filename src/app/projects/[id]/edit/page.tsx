@@ -50,7 +50,6 @@ export default async function EditProjectPage({ params }: PageProps) {
               imageUrl: project.imageUrl ?? "",
               repos: project.repos ?? [],
               links: project.links,
-              sortOrder: String(project.sortOrder),
             }}
           />
         </div>

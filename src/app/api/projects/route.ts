@@ -14,7 +14,6 @@ type CreateBody = {
   githubUrl?: string;
   repos?: ProjectRepo[];
   links?: ProjectLink[];
-  sortOrder?: number;
 };
 
 function validateProjectBody(body: CreateBody): string | null {
@@ -112,7 +111,6 @@ export async function POST(request: Request) {
       imageUrl: body.imageUrl,
       repos: resolveRepos(body),
       links: body.links ?? [],
-      sortOrder: body.sortOrder,
     });
     return NextResponse.json({ project }, { status: 201 });
   } catch (err) {

@@ -13,7 +13,6 @@ type UpdateBody = {
   githubUrl?: string;
   repos?: ProjectRepo[];
   links?: ProjectLink[];
-  sortOrder?: number;
 };
 
 type RouteContext = {
@@ -99,7 +98,6 @@ export async function PUT(request: Request, context: RouteContext) {
       imageUrl: body.imageUrl,
       repos: resolveRepos(body),
       links: body.links ?? [],
-      sortOrder: body.sortOrder,
     });
 
     if (!project) {
