@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Project } from "@/data/projects";
 
 function GitHubIcon({ className }: { className?: string }) {
@@ -25,6 +25,17 @@ function GitHubIcon({ className }: { className?: string }) {
 export function ProjectCard({ project }: { project: Project }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [reposOpen, setReposOpen] = useState(false);
+  const repos = project.repos ?? [];
+
+  useEffect(() => {
+    if (!reposOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setReposOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [reposOpen]);
 
   async function handleDelete() {
     const confirmed = window.confirm(
@@ -51,80 +62,146 @@ export function ProjectCard({ project }: { project: Project }) {
   }
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300/60 hover:shadow-lg hover:shadow-emerald-900/5 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-700/50">
-      <div className="flex items-start gap-4 p-5 pb-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-2xl shadow-md shadow-emerald-600/20">
-          {project.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={project.imageUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span aria-hidden>{project.icon}</span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
-              {project.name}
-            </h2>
-            <a
-              href={project.githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="مستودع GitHub"
-              className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-            >
-              <GitHubIcon className="h-5 w-5" />
-              <span className="sr-only">GitHub</span>
-            </a>
+    <>
+      <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300/60 hover:shadow-lg hover:shadow-emerald-900/5 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-700/50">
+        <div className="flex items-start gap-4 p-5 pb-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-2xl shadow-md shadow-emerald-600/20">
+            {project.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={project.imageUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span aria-hidden>{project.icon}</span>
+            )}
           </div>
-          <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            {project.description}
-          </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                {project.name}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setReposOpen(true)}
+                title="مستودعات GitHub"
+                className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              >
+                <GitHubIcon className="h-5 w-5" />
+                <span className="sr-only">مستودعات GitHub</span>
+              </button>
+            </div>
+            {project.description?.trim() ? (
+              <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                {project.description}
+              </p>
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      {project.links.length > 0 && (
-        <div className="border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
-          <ul className="flex flex-wrap gap-2">
-            {project.links.map((link) => (
-              <li key={`${link.label}-${link.url}`}>
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+        {project.links.length > 0 && (
+          <div className="border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
+            <ul className="flex flex-wrap gap-2">
+              {project.links.map((link) => (
+                <li key={`${link.label}-${link.url}`}>
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                  >
+                    {link.label}
+                    <span aria-hidden className="opacity-60">
+                      ↗
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="mt-auto flex flex-wrap gap-2 border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
+          <Link
+            href={`/projects/${encodeURIComponent(project.id)}/edit`}
+            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+          >
+            تعديل
+          </Link>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/50"
+          >
+            {deleting ? "جاري الحذف..." : "حذف"}
+          </button>
+        </div>
+      </article>
+
+      {reposOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`repos-title-${project.id}`}
+          onClick={() => setReposOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3
+                  id={`repos-title-${project.id}`}
+                  className="text-base font-bold text-zinc-900 dark:text-zinc-50"
                 >
-                  {link.label}
-                  <span aria-hidden className="opacity-60">
-                    ↗
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
+                  مستودعات GitHub
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {project.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReposOpen(false)}
+                className="rounded-lg px-2 py-1 text-sm text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              >
+                إغلاق
+              </button>
+            </div>
+
+            {repos.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                لا توجد مستودعات.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {repos.map((repo) => (
+                  <li key={`${repo.name}-${repo.url}`}>
+                    <a
+                      href={repo.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-zinc-700 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40"
+                    >
+                      <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                        {repo.name}
+                      </span>
+                      <span className="shrink-0 text-xs text-emerald-700 dark:text-emerald-300">
+                        فتح ↗
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
-
-      <div className="mt-auto flex flex-wrap gap-2 border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
-        <Link
-          href={`/projects/${encodeURIComponent(project.id)}/edit`}
-          className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
-        >
-          تعديل
-        </Link>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={deleting}
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/50"
-        >
-          {deleting ? "جاري الحذف..." : "حذف"}
-        </button>
-      </div>
-    </article>
+    </>
   );
 }

@@ -48,7 +48,7 @@ export default async function EditProjectPage({ params }: PageProps) {
               description: project.description,
               icon: project.icon,
               imageUrl: project.imageUrl ?? "",
-              githubUrl: project.githubUrl,
+              repos: project.repos ?? [],
               links: project.links,
               sortOrder: String(project.sortOrder),
             }}
