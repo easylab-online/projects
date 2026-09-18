@@ -347,8 +347,8 @@ export async function updateProject(
     statements.push(
       db
         .prepare(
-          `INSERT INTO project_repos (project_id, name, description, icon, image_url, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO project_repos (project_id, name, url, sort_order)
+           VALUES (?, ?, ?, ?)`,
         )
         .bind(id, repo.name, repo.url, index + 1),
     );
