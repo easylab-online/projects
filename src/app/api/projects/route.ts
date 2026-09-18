@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { listProjects } from "@/lib/projects";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   if (!(await isAuthenticated())) {
     return NextResponse.json(

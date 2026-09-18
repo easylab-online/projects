@@ -18,48 +18,66 @@ type LinkRow = {
   sort_order: number;
 };
 
+function isMissingTableError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.includes("no such table") ||
+    message.includes("D1_ERROR") ||
+    message.includes("SQLITE_ERROR")
+  );
+}
+
 /** Load all projects with their links from D1, ordered by sort_order. */
 export async function listProjects(): Promise<Project[]> {
-  const db = await getDB();
+  try {
+    const db = await getDB();
 
-  const projectsResult = await db
-    .prepare(
-      `SELECT id, name, description, icon, image_url, github_url, sort_order
-       FROM projects
-       ORDER BY sort_order ASC, id ASC`,
-    )
-    .all<ProjectRow>();
+    const projectsResult = await db
+      .prepare(
+        `SELECT id, name, description, icon, image_url, github_url, sort_order
+         FROM projects
+         ORDER BY sort_order ASC, id ASC`,
+      )
+      .all<ProjectRow>();
 
-  const linksResult = await db
-    .prepare(
-      `SELECT project_id, label, url, sort_order
-       FROM project_links
-       ORDER BY sort_order ASC, id ASC`,
-    )
-    .all<LinkRow>();
+    const linksResult = await db
+      .prepare(
+        `SELECT project_id, label, url, sort_order
+         FROM project_links
+         ORDER BY sort_order ASC, id ASC`,
+      )
+      .all<LinkRow>();
 
-  const projectRows: ProjectRow[] = projectsResult.results ?? [];
-  const linkRows: LinkRow[] = linksResult.results ?? [];
+    const projectRows: ProjectRow[] = projectsResult.results ?? [];
+    const linkRows: LinkRow[] = linksResult.results ?? [];
 
-  const linksByProject = new Map<string, ProjectLink[]>();
-  for (const link of linkRows) {
-    const list = linksByProject.get(link.project_id) ?? [];
-    list.push({ label: link.label, url: link.url });
-    linksByProject.set(link.project_id, list);
-  }
-
-  return projectRows.map((row: ProjectRow): Project => {
-    const project: Project = {
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      icon: row.icon,
-      githubUrl: row.github_url,
-      links: linksByProject.get(row.id) ?? [],
-    };
-    if (row.image_url) {
-      project.imageUrl = row.image_url;
+    const linksByProject = new Map<string, ProjectLink[]>();
+    for (const link of linkRows) {
+      const list = linksByProject.get(link.project_id) ?? [];
+      list.push({ label: link.label, url: link.url });
+      linksByProject.set(link.project_id, list);
     }
-    return project;
-  });
+
+    return projectRows.map((row: ProjectRow): Project => {
+      const project: Project = {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        icon: row.icon,
+        githubUrl: row.github_url,
+        links: linksByProject.get(row.id) ?? [],
+      };
+      if (row.image_url) {
+        project.imageUrl = row.image_url;
+      }
+      return project;
+    });
+  } catch (err) {
+    // Local/CI D1 may be empty before migrations; never fail the Next.js build.
+    if (isMissingTableError(err)) {
+      console.warn("listProjects: D1 schema missing, returning []", err);
+      return [];
+    }
+    throw err;
+  }
 }

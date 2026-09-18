@@ -2,8 +2,16 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { ProjectGrid } from "@/components/ProjectGrid";
 import { listProjects } from "@/lib/projects";
 
+/** D1 is only available at request time — never prerender against empty build DB. */
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
-  const projects = await listProjects();
+  let projects: Awaited<ReturnType<typeof listProjects>> = [];
+  try {
+    projects = await listProjects();
+  } catch (err) {
+    console.error("listProjects failed on home page", err);
+  }
 
   return (
     <div className="lab-grid min-h-screen">
