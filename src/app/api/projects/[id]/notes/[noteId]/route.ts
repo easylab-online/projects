@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { deleteNote, updateNote } from "@/lib/notes";
+import { deleteNote, getNote, updateNote } from "@/lib/notes";
 import { getProject } from "@/lib/projects";
 
 export const dynamic = "force-dynamic";
@@ -18,28 +18,6 @@ function parseNoteId(raw: string): number | null {
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1) return null;
   return n;
-}
-
-function validateNoteBody(body: NoteBody, isPartial: boolean): string | null {
-  if (isPartial && body.title === undefined && body.body === undefined) {
-    return "لا توجد بيانات للتحديث.";
-  }
-  const title = body.title !== undefined ? body.title.trim() : undefined;
-  const noteBody = body.body !== undefined ? body.body.trim() : undefined;
-
-  // When both provided (or we're replacing fully), require at least one non-empty
-  if (title !== undefined && noteBody !== undefined && !title && !noteBody) {
-    return "يجب إدخال عنوان أو محتوى الملاحظة على الأقل.";
-  }
-  if (title !== undefined && noteBody === undefined && !title) {
-    // title cleared — body must exist on server; validated in update after fetch would be better,
-    // but require title not empty alone when only title sent empty without body field
-    // Allow empty title if body not being cleared
-  }
-  if (noteBody !== undefined && title === undefined && !noteBody) {
-    // body cleared — title may remain; OK if title stays
-  }
-  return null;
 }
 
 export async function PUT(request: Request, context: RouteContext) {
@@ -69,9 +47,8 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
 
-  const validationError = validateNoteBody(body, true);
-  if (validationError) {
-    return NextResponse.json({ error: validationError }, { status: 400 });
+  if (body.title === undefined && body.body === undefined) {
+    return NextResponse.json({ error: "لا توجد بيانات للتحديث." }, { status: 400 });
   }
 
   try {
@@ -80,9 +57,22 @@ export async function PUT(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "المشروع غير موجود." }, { status: 404 });
     }
 
-    // Ensure final title+body is not both empty
-    const nextTitle = body.title !== undefined ? body.title.trim() : undefined;
-    const nextBody = body.body !== undefined ? body.body.trim() : undefined;
+    const existing = await getNote(id, noteId);
+    if (!existing) {
+      return NextResponse.json({ error: "الملاحظة غير موجودة." }, { status: 404 });
+    }
+
+    const nextTitle =
+      body.title !== undefined ? body.title.trim() : existing.title;
+    const nextBody =
+      body.body !== undefined ? body.body.trim() : existing.body;
+
+    if (!nextTitle && !nextBody) {
+      return NextResponse.json(
+        { error: "يجب إدخال عنوان أو محتوى الملاحظة على الأقل." },
+        { status: 400 },
+      );
+    }
 
     const note = await updateNote(id, noteId, {
       title: nextTitle,
@@ -91,14 +81,6 @@ export async function PUT(request: Request, context: RouteContext) {
 
     if (!note) {
       return NextResponse.json({ error: "الملاحظة غير موجودة." }, { status: 404 });
-    }
-
-    if (!note.title.trim() && !note.body.trim()) {
-      // Roll back conceptually — reject empty note
-      return NextResponse.json(
-        { error: "يجب إدخال عنوان أو محتوى الملاحظة على الأقل." },
-        { status: 400 },
-      );
     }
 
     return NextResponse.json({ note });
