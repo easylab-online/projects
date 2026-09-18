@@ -1,3 +1,8 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { Project } from "@/data/projects";
 
 function GitHubIcon({ className }: { className?: string }) {
@@ -18,6 +23,33 @@ function GitHubIcon({ className }: { className?: string }) {
 }
 
 export function ProjectCard({ project }: { project: Project }) {
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `هل أنت متأكد من حذف المشروع «${project.name}»؟ لا يمكن التراجع عن هذا الإجراء.`,
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        window.alert(data.error || "تعذر حذف المشروع. حاول مرة أخرى.");
+        setDeleting(false);
+        return;
+      }
+      router.refresh();
+    } catch {
+      window.alert("حدث خطأ في الاتصال. حاول مرة أخرى.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300/60 hover:shadow-lg hover:shadow-emerald-900/5 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-700/50">
       <div className="flex items-start gap-4 p-5 pb-3">
@@ -56,10 +88,10 @@ export function ProjectCard({ project }: { project: Project }) {
       </div>
 
       {project.links.length > 0 && (
-        <div className="mt-auto border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
+        <div className="border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
           <ul className="flex flex-wrap gap-2">
             {project.links.map((link) => (
-              <li key={link.url}>
+              <li key={`${link.label}-${link.url}`}>
                 <a
                   href={link.url}
                   target="_blank"
@@ -76,6 +108,23 @@ export function ProjectCard({ project }: { project: Project }) {
           </ul>
         </div>
       )}
+
+      <div className="mt-auto flex flex-wrap gap-2 border-t border-zinc-100 px-5 py-3 dark:border-zinc-800">
+        <Link
+          href={`/projects/${encodeURIComponent(project.id)}/edit`}
+          className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+        >
+          تعديل
+        </Link>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/50"
+        >
+          {deleting ? "جاري الحذف..." : "حذف"}
+        </button>
+      </div>
     </article>
   );
 }

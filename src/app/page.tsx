@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LogoutButton } from "@/components/LogoutButton";
 import { ProjectGrid } from "@/components/ProjectGrid";
 import { listProjects } from "@/lib/projects";
@@ -30,7 +31,15 @@ export default async function HomePage() {
               </p>
             </div>
           </div>
-          <LogoutButton />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/projects/new"
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/25 transition hover:bg-emerald-500"
+            >
+              إضافة مشروع
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
       </header>
 
