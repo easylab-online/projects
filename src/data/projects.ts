@@ -3,14 +3,21 @@ export type ProjectLink = {
   url: string;
 };
 
+export type ProjectRepo = {
+  name: string;
+  url: string;
+};
+
 export type Project = {
   id: string;
   name: string;
+  /** May be empty */
   description: string;
-  /** Emoji or short icon glyph shown on the card */
   icon: string;
-  /** Optional image URL (overrides emoji when set) */
   imageUrl?: string;
   links: ProjectLink[];
-  githubUrl: string;
+  /** GitHub repositories (name + url) */
+  repos: ProjectRepo[];
+  /** First repo URL when present — prefer `repos` */
+  githubUrl?: string;
 };

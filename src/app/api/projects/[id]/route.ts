@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { deleteProject, updateProject } from "@/lib/projects";
-import type { ProjectLink } from "@/data/projects";
+import type { ProjectLink, ProjectRepo } from "@/data/projects";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,7 @@ type UpdateBody = {
   icon?: string;
   imageUrl?: string | null;
   githubUrl?: string;
+  repos?: ProjectRepo[];
   links?: ProjectLink[];
   sortOrder?: number;
 };
@@ -21,8 +22,6 @@ type RouteContext = {
 
 function validateProjectBody(body: UpdateBody): string | null {
   if (!body.name?.trim()) return "الاسم مطلوب.";
-  if (!body.description?.trim()) return "الوصف مطلوب.";
-  if (!body.githubUrl?.trim()) return "رابط GitHub مطلوب.";
 
   if (body.links != null) {
     if (!Array.isArray(body.links)) return "قائمة الروابط غير صالحة.";
@@ -36,7 +35,32 @@ function validateProjectBody(body: UpdateBody): string | null {
     }
   }
 
+  if (body.repos != null) {
+    if (!Array.isArray(body.repos)) return "قائمة مستودعات GitHub غير صالحة.";
+    for (const repo of body.repos) {
+      if (!repo || typeof repo !== "object") {
+        return "كل مستودع يحتاج اسماً ورابطاً.";
+      }
+      if (!String(repo.name ?? "").trim() || !String(repo.url ?? "").trim()) {
+        return "كل مستودع يحتاج اسماً ورابطاً.";
+      }
+    }
+  }
+
   return null;
+}
+
+function resolveRepos(body: UpdateBody): ProjectRepo[] {
+  if (Array.isArray(body.repos)) {
+    return body.repos.map((r) => ({
+      name: String(r.name).trim(),
+      url: String(r.url).trim(),
+    }));
+  }
+  if (body.githubUrl?.trim()) {
+    return [{ name: "المستودع الرئيسي", url: body.githubUrl.trim() }];
+  }
+  return [];
 }
 
 export async function PUT(request: Request, context: RouteContext) {
@@ -70,10 +94,10 @@ export async function PUT(request: Request, context: RouteContext) {
   try {
     const project = await updateProject(id, {
       name: body.name!,
-      description: body.description!,
+      description: body.description ?? "",
       icon: body.icon?.trim() || "📦",
       imageUrl: body.imageUrl,
-      githubUrl: body.githubUrl!,
+      repos: resolveRepos(body),
       links: body.links ?? [],
       sortOrder: body.sortOrder,
     });
