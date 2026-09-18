@@ -7,7 +7,6 @@ type ProjectRow = {
   description: string;
   icon: string;
   image_url: string | null;
-  github_url: string;
   sort_order: number;
 };
 
@@ -34,8 +33,6 @@ export type ProjectInput = {
   icon: string;
   imageUrl?: string | null;
   repos?: ProjectRepo[];
-  /** @deprecated prefer repos */
-  githubUrl?: string;
   links: ProjectLink[];
   sortOrder?: number;
 };
@@ -65,24 +62,15 @@ function mapProject(
   if (row.image_url) {
     project.imageUrl = row.image_url;
   }
-  const firstUrl = repos[0]?.url || row.github_url || undefined;
-  if (firstUrl) {
-    project.githubUrl = firstUrl;
-  }
   return project;
 }
 
 function normalizeRepos(input: ProjectInput): ProjectRepo[] {
-  if (input.repos && input.repos.length > 0) {
-    return input.repos.map((r) => ({
-      name: r.name.trim(),
-      url: r.url.trim(),
-    }));
-  }
-  if (input.githubUrl?.trim()) {
-    return [{ name: "المستودع الرئيسي", url: input.githubUrl.trim() }];
-  }
-  return [];
+  if (!input.repos?.length) return [];
+  return input.repos.map((r) => ({
+    name: r.name.trim(),
+    url: r.url.trim(),
+  }));
 }
 
 export function slugifyProjectId(name: string): string {
@@ -159,24 +147,13 @@ async function loadReposForProjects(
   return map;
 }
 
-function reposWithLegacyFallback(
-  row: ProjectRow,
-  repos: ProjectRepo[],
-): ProjectRepo[] {
-  if (repos.length > 0) return repos;
-  if (row.github_url?.trim()) {
-    return [{ name: "المستودع الرئيسي", url: row.github_url.trim() }];
-  }
-  return [];
-}
-
 export async function listProjects(): Promise<Project[]> {
   try {
     const db = await getDB();
 
     const projectsResult = await db
       .prepare(
-        `SELECT id, name, description, icon, image_url, github_url, sort_order
+        `SELECT id, name, description, icon, image_url, sort_order
          FROM projects
          ORDER BY sort_order ASC, id ASC`,
       )
@@ -205,7 +182,7 @@ export async function listProjects(): Promise<Project[]> {
       mapProject(
         row,
         linksByProject.get(row.id) ?? [],
-        reposWithLegacyFallback(row, reposByProject.get(row.id) ?? []),
+        reposByProject.get(row.id) ?? [],
       ),
     );
   } catch (err) {
@@ -223,7 +200,7 @@ export async function getProject(id: string): Promise<ProjectWithSort | null> {
 
     const row = await db
       .prepare(
-        `SELECT id, name, description, icon, image_url, github_url, sort_order
+        `SELECT id, name, description, icon, image_url, sort_order
          FROM projects
          WHERE id = ?
          LIMIT 1`,
@@ -249,13 +226,9 @@ export async function getProject(id: string): Promise<ProjectWithSort | null> {
     }));
 
     const reposByProject = await loadReposForProjects(db, [id]);
-    const repos = reposWithLegacyFallback(
-      row,
-      reposByProject.get(id) ?? [],
-    );
 
     return {
-      ...mapProject(row, links, repos),
+      ...mapProject(row, links, reposByProject.get(id) ?? []),
       sortOrder: row.sort_order,
     };
   } catch (err) {
@@ -277,15 +250,14 @@ export async function createProject(input: ProjectInput): Promise<ProjectWithSor
   const description = (input.description ?? "").trim();
   const links = input.links ?? [];
   const repos = normalizeRepos(input);
-  const legacyGithub = repos[0]?.url ?? "";
 
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
-        `INSERT INTO projects (id, name, description, icon, image_url, github_url, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, name, description, icon, image_url, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(id, input.name.trim(), description, icon, imageUrl, legacyGithub, sortOrder),
+      .bind(id, input.name.trim(), description, icon, imageUrl, sortOrder),
   ];
 
   links.forEach((link, index) => {
@@ -337,24 +309,15 @@ export async function updateProject(
   const description = (input.description ?? "").trim();
   const links = input.links ?? [];
   const repos = normalizeRepos(input);
-  const legacyGithub = repos[0]?.url ?? "";
 
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
         `UPDATE projects
-         SET name = ?, description = ?, icon = ?, image_url = ?, github_url = ?, sort_order = ?
+         SET name = ?, description = ?, icon = ?, image_url = ?, sort_order = ?
          WHERE id = ?`,
       )
-      .bind(
-        input.name.trim(),
-        description,
-        icon,
-        imageUrl,
-        legacyGithub,
-        sortOrder,
-        id,
-      ),
+      .bind(input.name.trim(), description, icon, imageUrl, sortOrder, id),
     db.prepare(`DELETE FROM project_links WHERE project_id = ?`).bind(id),
     db.prepare(`DELETE FROM project_repos WHERE project_id = ?`).bind(id),
   ];

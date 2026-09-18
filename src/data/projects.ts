@@ -18,6 +18,4 @@ export type Project = {
   links: ProjectLink[];
   /** GitHub repositories (name + url) */
   repos: ProjectRepo[];
-  /** First repo URL when present — prefer `repos` */
-  githubUrl?: string;
 };

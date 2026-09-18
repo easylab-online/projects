@@ -1,4 +1,4 @@
--- Multiple GitHub repos per project
+-- Multiple GitHub repos per project (kept for older DBs that already applied 0001 with github_url)
 CREATE TABLE IF NOT EXISTS project_repos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
