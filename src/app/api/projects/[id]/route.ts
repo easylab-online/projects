@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { createProject, listProjects } from "@/lib/projects";
+import { deleteProject, updateProject } from "@/lib/projects";
 import type { ProjectLink } from "@/data/projects";
 
 export const dynamic = "force-dynamic";
 
-type CreateBody = {
-  id?: string;
+type UpdateBody = {
   name?: string;
   description?: string;
   icon?: string;
@@ -16,7 +15,11 @@ type CreateBody = {
   sortOrder?: number;
 };
 
-function validateProjectBody(body: CreateBody): string | null {
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+function validateProjectBody(body: UpdateBody): string | null {
   if (!body.name?.trim()) return "الاسم مطلوب.";
   if (!body.description?.trim()) return "الوصف مطلوب.";
   if (!body.githubUrl?.trim()) return "رابط GitHub مطلوب.";
@@ -36,7 +39,7 @@ function validateProjectBody(body: CreateBody): string | null {
   return null;
 }
 
-export async function GET() {
+export async function PUT(request: Request, context: RouteContext) {
   if (!(await isAuthenticated())) {
     return NextResponse.json(
       { error: "غير مصرح. يرجى تسجيل الدخول." },
@@ -44,29 +47,14 @@ export async function GET() {
     );
   }
 
-  try {
-    const projects = await listProjects();
-    return NextResponse.json({ projects });
-  } catch (err) {
-    console.error("listProjects failed", err);
-    return NextResponse.json(
-      { error: "تعذر تحميل المشاريع. حاول مرة أخرى." },
-      { status: 500 },
-    );
-  }
-}
-
-export async function POST(request: Request) {
-  if (!(await isAuthenticated())) {
-    return NextResponse.json(
-      { error: "غير مصرح. يرجى تسجيل الدخول." },
-      { status: 401 },
-    );
+  const { id } = await context.params;
+  if (!id) {
+    return NextResponse.json({ error: "معرّف المشروع مطلوب." }, { status: 400 });
   }
 
-  let body: CreateBody;
+  let body: UpdateBody;
   try {
-    body = (await request.json()) as CreateBody;
+    body = (await request.json()) as UpdateBody;
   } catch {
     return NextResponse.json(
       { error: "بيانات الطلب غير صالحة." },
@@ -80,8 +68,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const project = await createProject({
-      id: body.id,
+    const project = await updateProject(id, {
       name: body.name!,
       description: body.description!,
       icon: body.icon?.trim() || "📦",
@@ -90,11 +77,50 @@ export async function POST(request: Request) {
       links: body.links ?? [],
       sortOrder: body.sortOrder,
     });
-    return NextResponse.json({ project }, { status: 201 });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "المشروع غير موجود." },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ project });
   } catch (err) {
-    console.error("createProject failed", err);
+    console.error("updateProject failed", err);
     return NextResponse.json(
-      { error: "تعذر إنشاء المشروع. حاول مرة أخرى." },
+      { error: "تعذر تحديث المشروع. حاول مرة أخرى." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(_request: Request, context: RouteContext) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json(
+      { error: "غير مصرح. يرجى تسجيل الدخول." },
+      { status: 401 },
+    );
+  }
+
+  const { id } = await context.params;
+  if (!id) {
+    return NextResponse.json({ error: "معرّف المشروع مطلوب." }, { status: 400 });
+  }
+
+  try {
+    const deleted = await deleteProject(id);
+    if (!deleted) {
+      return NextResponse.json(
+        { error: "المشروع غير موجود." },
+        { status: 404 },
+      );
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("deleteProject failed", err);
+    return NextResponse.json(
+      { error: "تعذر حذف المشروع. حاول مرة أخرى." },
       { status: 500 },
     );
   }
