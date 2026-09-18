@@ -369,6 +369,8 @@ export async function deleteProject(id: string): Promise<boolean> {
   if (!existing) return false;
 
   await db.batch([
+    db.prepare(`DELETE FROM project_notes WHERE project_id = ?`).bind(id),
+    db.prepare(`DELETE FROM project_tasks WHERE project_id = ?`).bind(id),
     db.prepare(`DELETE FROM project_links WHERE project_id = ?`).bind(id),
     db.prepare(`DELETE FROM project_repos WHERE project_id = ?`).bind(id),
     db.prepare(`DELETE FROM projects WHERE id = ?`).bind(id),
