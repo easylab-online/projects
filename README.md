@@ -1,12 +1,13 @@
 # مشاريع EasyLab / EasyLab Projects
 
-لوحة ويب داخلية (Next.js + PWA) لعرض مشاريع EasyLab، محمية بكلمة مرور، وقابلة للنشر على Cloudflare Workers عبر `@opennextjs/cloudflare`.
+لوحة ويب داخلية (Next.js + PWA) لعرض مشاريع EasyLab، محمية بتسجيل دخول (بريد + كلمة مرور) عبر Cloudflare D1، وقابلة للنشر على Cloudflare Workers عبر `@opennextjs/cloudflare`.
 
-Internal project gallery (Next.js + PWA) for EasyLab — password-gated, Arabic-first RTL UI, deployable to Cloudflare Workers.
+Internal project gallery (Next.js + PWA) for EasyLab — email+password auth and projects stored in Cloudflare D1, Arabic-first RTL UI, deployable to Cloudflare Workers.
 
 **Domain:** `projects.easylab.online`  
-**Worker name:** `easylab-projects`  
-**Repo:** https://github.com/easylab-online/projects
+**Worker name:** `projects`  
+**Repo:** https://github.com/easylab-online/projects  
+**D1 database:** `projects-db` (binding: `DB`)
 
 ---
 
@@ -14,7 +15,7 @@ Internal project gallery (Next.js + PWA) for EasyLab — password-gated, Arabic-
 
 ### المتطلبات
 - Node.js 22+ (موصى به لـ Wrangler 4) أو 20+ للتطوير المحلي
-- حساب Cloudflare مع Workers مفعّل
+- حساب Cloudflare مع Workers و D1 مفعّلين
 - نطاق `easylab.online` على Cloudflare DNS
 
 ### التطوير المحلي
@@ -23,9 +24,22 @@ npm install
 npm run icons   # يولّد أيقونات PNG
 npm run dev
 ```
-افتح [http://localhost:3000](http://localhost:3000) — سيُطلب منك تسجيل الدخول.
+افتح [http://localhost:3000](http://localhost:3000) — سيُطلب منك تسجيل الدخول بالبريد الإلكتروني وكلمة المرور.
 
-كلمة المرور الافتراضية (مضمّنة في الكود): `wajih`
+حسابات المستخدمين مخزّنة في Cloudflare D1 (جدول `users`). لا تُوثَّق كلمات المرور في المستودع.
+
+### قاعدة البيانات (D1)
+- **Binding:** `DB`
+- **Database name:** `projects-db`
+- **الجداول:** `users`, `projects`, `project_links`
+- **الهجرات:** `migrations/` (طبّقها عبر Wrangler عند الحاجة)
+
+```bash
+npx wrangler d1 migrations apply projects-db --local   # محلي
+npx wrangler d1 migrations apply projects-db --remote  # إنتاج
+```
+
+المشاريع تُحمَّل من D1 (وليس من مصفوفة ثابتة في الكود).
 
 ### البناء
 ```bash
@@ -59,13 +73,13 @@ npm run preview
 ```
 
 ### ربط النطاق `projects.easylab.online`
-1. انشر الـ Worker (`easylab-projects`).
-2. في لوحة Cloudflare → **Workers & Pages** → `easylab-projects` → **Settings** → **Domains & Routes**.
+1. انشر الـ Worker (`projects`).
+2. في لوحة Cloudflare → **Workers & Pages** → `projects` → **Settings** → **Domains & Routes**.
 3. أضف نطاقاً مخصصاً: `projects.easylab.online`.
 4. تأكد من سجل DNS (Proxied).
 
 ### إضافة مشروع جديد
-عدّل الملف `src/data/projects.ts`.
+أضف صفوفاً في جداول `projects` و `project_links` في D1 (أو عبر هجرة SQL).
 
 ---
 
@@ -73,7 +87,7 @@ npm run preview
 
 ### Requirements
 - Node.js 22+ recommended (Wrangler 4); 20+ fine for local `next dev`
-- Cloudflare account with Workers enabled
+- Cloudflare account with Workers + D1 enabled
 - `easylab.online` zone on Cloudflare DNS
 
 ### Local development
@@ -82,7 +96,17 @@ npm install
 npm run icons
 npm run dev
 ```
-Default password (hardcoded): `wajih`
+Login uses **email + password**. Users live in D1 (`users` table). Passwords are never documented in this repo.
+
+### D1
+- Binding: `DB` → database `projects-db`
+- Tables: `users`, `projects`, `project_links`
+- Migrations: `migrations/`
+
+```bash
+npx wrangler d1 migrations apply projects-db --local
+npx wrangler d1 migrations apply projects-db --remote
+```
 
 ### Build
 ```bash
@@ -111,10 +135,10 @@ Do **not** use `npx wrangler deploy` alone — it fails with `Could not find com
 See [`docs/WORKERS_BUILDS.md`](docs/WORKERS_BUILDS.md).
 
 ### DNS / custom domain `projects.easylab.online`
-Workers & Pages → `easylab-projects` → Domains & Routes → add `projects.easylab.online` (Proxied DNS).
+Workers & Pages → `projects` → Domains & Routes → add `projects.easylab.online` (Proxied DNS).
 
 ### Extending projects
-Edit `src/data/projects.ts`.
+Insert into D1 `projects` / `project_links` (or add a SQL migration).
 
 ### Security note
-Simple hardcoded password gate for an internal gallery. Do not store additional secrets in the repo.
+Auth is email+password with PBKDF2-SHA256 hashes in D1. Do not commit plaintext passwords or additional secrets to the repo.

@@ -1,8 +1,10 @@
 import { LogoutButton } from "@/components/LogoutButton";
 import { ProjectGrid } from "@/components/ProjectGrid";
-import { projects } from "@/data/projects";
+import { listProjects } from "@/lib/projects";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const projects = await listProjects();
+
   return (
     <div className="lab-grid min-h-screen">
       <header className="border-b border-zinc-200/80 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -33,7 +35,7 @@ export default function HomePage() {
             اختر مشروعاً لفتح روابطه أو مستودع GitHub
           </p>
         </div>
-        <ProjectGrid />
+        <ProjectGrid projects={projects} />
       </main>
 
       <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2 text-center text-xs text-zinc-400 sm:px-6">

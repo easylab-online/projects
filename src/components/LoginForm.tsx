@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 export function LoginForm() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,13 +19,15 @@ export function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = (await res.json()) as { error?: string; ok?: boolean };
 
       if (!res.ok) {
-        setError(data.error || "كلمة المرور غير صحيحة. حاول مرة أخرى.");
+        setError(
+          data.error || "بيانات الدخول غير صحيحة. تحقق من البريد وكلمة المرور.",
+        );
         setLoading(false);
         return;
       }
@@ -41,6 +44,7 @@ export function LoginForm() {
     <form
       onSubmit={onSubmit}
       className="w-full max-w-sm space-y-5 rounded-2xl border border-emerald-900/10 bg-white/90 p-8 shadow-xl shadow-emerald-950/10 backdrop-blur dark:border-emerald-100/10 dark:bg-zinc-900/90"
+      dir="rtl"
     >
       <div className="space-y-2 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-lg shadow-emerald-600/30">
@@ -50,8 +54,29 @@ export function LoginForm() {
           مشاريع EasyLab
         </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          أدخل كلمة المرور للوصول إلى لوحة المشاريع
+          سجّل الدخول بالبريد الإلكتروني وكلمة المرور
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+        >
+          اسم الدخول / البريد
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 transition focus:border-emerald-500 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+          placeholder="name@example.com"
+          dir="ltr"
+        />
       </div>
 
       <div className="space-y-2">
