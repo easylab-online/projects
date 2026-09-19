@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Arabic } from "next/font/google";
+import { InstallPWAButton } from "@/components/InstallPWAButton";
 import { SerwistProvider } from "@/components/SerwistProvider";
 import "./globals.css";
 
@@ -51,7 +52,10 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={`${notoArabic.variable} h-full`}>
       <body className="min-h-full bg-zinc-50 font-sans text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50">
-        <SerwistProvider swUrl="/sw.js">{children}</SerwistProvider>
+        <SerwistProvider swUrl="/sw.js">
+          <InstallPWAButton />
+          {children}
+        </SerwistProvider>
       </body>
     </html>
   );
